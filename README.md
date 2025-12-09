@@ -1,29 +1,42 @@
-# Exercise 2 – UK vs US Parliamentary Debates Analysis  
+
+
+---
+
+# 📌 Exercise 2 – UK vs US Parliamentary Debates Analysis
+
+### 👥 Students
+
+* **Ethan Sarfati — 345682546**
+* **Ruben Bensimon — 346915424**
 
 ---
 
 ## 1. Overview
 
-This project implements a full text‑processing, representation, clustering, and classification pipeline for distinguishing UK Parliamentary debates from US Congressional debates.
+This project implements a full **text-processing, vectorization, clustering, and classification pipeline** to distinguish UK Parliamentary debates from US Congressional debates.
 
-The dataset contains:
+The dataset contains **689 transcripts**:
 
-- ~329 UK debate transcripts  
-- ~360 US debate transcripts  
+| Parliament         | Count |
+| ------------------ | ----- |
+| 🇬🇧 UK Parliament | ~329  |
+| 🇺🇸 US Congress   | ~360  |
 
-The project reproduces all required steps of Exercise 2, including:
+The goal is to evaluate how different NLP representation models and machine learning algorithms behave on a **strongly separable two-class political text corpus**.
 
-- Text preprocessing (cleaning → tokenization → lemmatization)  
-- Construction of BM25 term‑weighting matrices  
-- Generation of document embeddings using Google News Word2Vec  
-- Dimensionality reduction (TruncatedSVD)  
-- Unsupervised clustering (KMeans, DBSCAN, HDBSCAN, Gaussian Mixture Models)  
-- Supervised classification (NB, Logistic Regression, Linear SVM, Random Forest)  
-- Neural architectures (ANN with ReLU and GELU)  
-- Feature importance extraction  
-- 2D visualizations (t‑SNE, UMAP)
+The workflow includes:
 
-The goal is to evaluate how different representation and learning methods behave on a strongly separable two‑class textual dataset.
+* Text preprocessing (cleaning → tokenization → lemmatization)
+* BM25 document-term matrix construction
+* Google News (300-dim) Word2Vec embeddings
+* **Dimensionality reduction (TruncatedSVD)**
+* Unsupervised clustering:
+  `KMeans, DBSCAN, HDBSCAN, Gaussian Mixture Models`
+* Supervised classification:
+  `Naive Bayes, Logistic Regression, Linear SVM, Random Forest`
+* Neural models (`ANN with ReLU and GELU`)
+* Feature importance extraction
+* **2D visualizations: t-SNE & UMAP**
 
 ---
 
@@ -53,75 +66,84 @@ exo2/
 
 ---
 
-## 3. Processing Pipeline (Conceptual Description)
+## 3. Processing Pipeline
 
-### 3.1 Text Preprocessing  
+### 3.1 Text Preprocessing
+
 Run:
 
 ```
 python src/01_ex2_prepare_data.py
 ```
 
-This script performs:
+Steps performed:
 
-1. Cleaning  
-   - punctuation separation  
-   - lowercasing  
-   - removal of unnecessary whitespace  
+* **Cleaning**
 
-2. Tokenization  
+  * punctuation spacing
+  * lowercasing
+  * whitespace normalization
+* **Tokenization**
+* **Lemmatization**
+* **Metadata assignment** (UK = 0, US = 1)
 
-3. Lemmatization  
-   - reduces inflected forms (e.g., “running”, “runs”) → “run”
+Output folders created:
 
-4. Metadata assignment  
-   - each document receives a group label: UK = 0, US = 1
+```
+ex2_clean/
+ex2_lemm/
+```
 
-Output folders:  
-`ex2_clean/`, `ex2_lemm/`
+Total processed documents: **689**.
 
 ---
 
 ## 4. Vector Representations
 
-### 4.1 BM25 Matrix  
+### 4.1 BM25 Matrix
+
 Run:
 
 ```
 python src/02_ex2_build_matrices.py
 ```
 
-BM25 is a ranking‑based term‑weighting function widely used in IR.  
-The script produces:
-
-- `BM25.npz` — sparse matrix (689 × vocabulary size)  
-- `BM25.meta.json` — vocabulary + metadata
-
-BM25 is particularly effective when documents have distinctive term frequency patterns.
-
-### 4.2 Google News Word2Vec Embeddings  
-The script also loads the **Word2Vec Google News 300‑dimensional model** and computes per‑document embeddings by averaging word vectors.
-
 Output:
 
-- `GOOGLENEWS.npz`  
-- metadata describing embedding dimensions  
+* `BM25.npz` — sparse 689×(vocab size) matrix
+* `BM25.meta.json` — vocabulary + document metadata
 
-These embeddings encode semantic similarities beyond term frequency.
+Used later for SVD, clustering, supervised learning, and visualization.
+
+---
+
+### 4.2 Google News Word2Vec Embeddings (300-d)
+
+* Pretrained embedding loaded (≈1.6GB).
+* Each document vector = average of known word embeddings.
+
+Outputs:
+
+* `GOOGLENEWS.npz`
+* `GOOGLENEWS.meta.json`
+
+These embeddings capture semantic similarity beyond raw term frequency.
 
 ---
 
 ## 5. Dimensionality Reduction
 
-BM25 is initially very high‑dimensional.  
-We apply:
+Since BM25 is high-dimensional, we apply:
 
-**TruncatedSVD (100 components)**  
+```
+TruncatedSVD(n_components=100)
+```
 
 This preserves variance while enabling:
 
-- efficient clustering  
-- approximate cosine similarity after L2 normalization  
+* efficient clustering
+* cosine similarity approximations
+* faster modeling
 
 ---
 
@@ -133,23 +155,17 @@ Run:
 python src/03_ex2_clustering.py
 ```
 
-Four methods are evaluated:
+### Summary of Results
 
-### 6.1 KMeans (k=2)  
-Works extremely well here: **100% accuracy**  
-Reason: UK vs US vocabulary is linearly separable after BM25 + SVD.
+| Method                      | Concept                | Accuracy   |
+| --------------------------- | ---------------------- | ---------- |
+| **KMeans (k=2)**            | Linear separability    | **100%**   |
+| **Gaussian Mixture Models** | Probabilistic clusters | **100%**   |
+| **HDBSCAN**                 | Hierarchical density   | **97.39%** |
+| **DBSCAN**                  | Density clustering     | **≈52%**   |
 
-### 6.2 DBSCAN  
-Density‑based clustering.  
-Results are weaker due to noise sensitivity and uneven document clusters.
-
-### 6.3 HDBSCAN  
-Improved hierarchical version.  
-Detects stable clusters and handles noise more effectively: **97%+ accuracy**
-
-### 6.4 Gaussian Mixture Model (2 components)  
-Soft clustering using probabilistic assignments.  
-Matches KMeans performance: **100% accuracy**
+Interpretation:
+UK and US clusters separate extremely well at lexical level.
 
 ---
 
@@ -161,26 +177,28 @@ Run:
 python src/04_ex2_classifiers.py
 ```
 
-On the BM25 matrix, the following models are trained with **10‑fold cross‑validation**:
+Models trained using 10-fold cross-validation:
 
-- Multinomial Naive Bayes  
-- Logistic Regression  
-- Linear SVM  
-- Random Forest  
+* Multinomial Naive Bayes
+* Logistic Regression
+* Linear SVM
+* Random Forest
 
-All achieve:
+**All models achieved:**
 
-**Accuracy = Precision = Recall = F1 = 1.0**
+```
+Accuracy = Precision = Recall = F1 = 1.00
+```
 
-This confirms that the dataset is linearly separable.
+Feature importance exported to:
 
-The script also extracts **feature importance**, saved to:
-
-`outputs/ex2/ex2_feature_importance.xlsx`
+```
+outputs/ex2/ex2_feature_importance.xlsx
+```
 
 ---
 
-## 8. Neural Architectures (ANN Models)
+## 8. Neural Networks (ANNs)
 
 Run:
 
@@ -188,17 +206,20 @@ Run:
 python src/05_ex2_ann.py
 ```
 
-The script builds:
+Architectures tested:
 
-1. Embedding layer (vocab_size=10,000)  
-2. Dense layers (ReLU or GELU)  
-3. Final binary classifier  
+* Dense layers + **ReLU**
+* Dense layers + **GELU**
 
-Both architectures reach **100% test accuracy**, demonstrating that even simple feedforward networks can solve this classification problem.
+Both achieved:
+
+```
+100% accuracy on held-out test dataset
+```
 
 ---
 
-## 9. Visualizations (t‑SNE, UMAP)
+## 9. Visualizations
 
 Run:
 
@@ -206,21 +227,27 @@ Run:
 python src/06_ex2_visualizations.py
 ```
 
-t-SNE and UMAP are applied to BM25 + SVD representations.
+Generated figures:
 
-Generated images:
+### t-SNE with true labels
 
-- `tsne_bm25_true_labels.png`
-- `tsne_bm25_kmeans_clusters.png`
-- `umap_bm25_true_labels.png`
+![t-SNE True Labels](src/outputs/ex2/tsne_bm25_true_labels.png)
 
-These show a clear two‑cluster separation aligned with the UK/US labels.
+### UMAP with true labels
+
+![UMAP True Labels](src/outputs/ex2/umap_bm25_true_labels.png)
+
+### t-SNE with KMeans clusters
+
+![t-SNE KMeans](src/outputs/ex2/tsne_bm25_kmeans_clusters.png)
+
+These confirm extremely clear UK/US separation.
 
 ---
 
-## 10. Reproducibility: Full Pipeline Execution
+## 10. Full Pipeline Reproduction
 
-To reproduce all results:
+To fully reproduce:
 
 ```
 python src/01_ex2_prepare_data.py
@@ -231,18 +258,10 @@ python src/05_ex2_ann.py
 python src/06_ex2_visualizations.py
 ```
 
-Ensure the following external models are installed:
+Requirements:
 
-- Google News Word2Vec (gensim‑downloader)
-- nltk wordnet lemmatizer resources
+* `gensim-downloader` (Google News embeddings)
+* `nltk wordnet` & required corpora
 
 ---
 
-## 11. Deliverables Included
-
-- Python source code  
-- Detailed README  
-- Feature importance Excel  
-- All clustering and embedding visualizations  
-- Raw and processed datasets  
-- Complete reproducible pipeline  
