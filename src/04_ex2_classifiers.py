@@ -6,7 +6,7 @@ from scipy import sparse
 import pandas as pd
 
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, classification_report
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import LinearSVC
@@ -20,6 +20,9 @@ from utils import read_token_docs_for_ex2, ensure_dir
 #  CHARGER BM25 + META
 # -------------------------------------------------------------------
 def load_bm25_matrix():
+    """
+    Charge la matrice BM25 sparse + vocabulaire + meta.
+    """
     base = pathlib.Path(__file__).resolve().parents[1]
     mat_dir = base / "src" / "data" / "ex2_matrices"
 
@@ -44,8 +47,9 @@ def load_bm25_matrix():
 
 def build_labels_from_meta(meta):
     """
-    UK -> 0
-    US -> 1
+    Construit les labels binaires :
+      UK -> 0
+      US -> 1
     """
     y = []
     for m in meta:
@@ -58,6 +62,40 @@ def build_labels_from_meta(meta):
     print("Labels built: UK=0, US=1")
     print("Counts:", {c: int(np.sum(y == c)) for c in [0, 1]})
     return y
+
+
+# -------------------------------------------------------------------
+#  CHARGER GOOGLE NEWS DOC EMBEDDINGS
+# -------------------------------------------------------------------
+def load_googlenews_matrix():
+    """
+    Charge la matrice de vecteurs de documents Google News (denses)
+    + meta pour vérifier la cohérence si besoin.
+
+    Fichier généré par 02_ex2_build_matrices.py :
+      - src/data/ex2_matrices/GOOGLENEWS.npz (clé 'mat')
+      - src/data/ex2_matrices/GOOGLENEWS.meta.json
+    """
+    base = pathlib.Path(__file__).resolve().parents[1]
+    mat_dir = base / "src" / "data" / "ex2_matrices"
+
+    gn_path = mat_dir / "GOOGLENEWS.npz"
+    meta_path = mat_dir / "GOOGLENEWS.meta.json"
+
+    print("Loading GoogleNews matrix from:", gn_path)
+    data = np.load(gn_path)
+    X_gn = data["mat"]  # shape (n_docs, 300) a priori
+
+    with open(meta_path, "r", encoding="utf-8") as f:
+        info = json.load(f)
+
+    meta = info["meta"]
+    dim = info.get("dim", X_gn.shape[1])
+
+    print(f"GoogleNews shape: {X_gn.shape} (dim={dim})")
+    print(f"Meta entries (GN): {len(meta)}")
+
+    return X_gn, meta
 
 
 # -------------------------------------------------------------------
@@ -95,6 +133,10 @@ def build_counts_matrix(vocab, docs):
 #  CROSS-VALIDATION GÉNÉRIQUE
 # -------------------------------------------------------------------
 def cross_validate_model(name, clf_template, X, y, n_splits=10):
+    """
+    Applique une cross-validation stratifiée k-fold (k=n_splits)
+    pour un modèle quelconque (template sklearn).
+    """
     print(f"\n=== {name} - {n_splits}-fold cross-validation ===")
 
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
@@ -129,7 +171,7 @@ def cross_validate_model(name, clf_template, X, y, n_splits=10):
 
 
 # -------------------------------------------------------------------
-#  FEATURE IMPORTANCE
+#  FEATURE IMPORTANCE (SUR BM25 UNIQUEMENT)
 # -------------------------------------------------------------------
 def top_features_nb(clf, vocab, k=20):
     """
@@ -211,7 +253,7 @@ def top_features_rf(clf, vocab, k=20):
 
 
 # -------------------------------------------------------------------
-#  ANALYSE COMPARATIVE DES FEATURES
+#  ANALYSE COMPARATIVE DES FEATURES (SUR BM25)
 # -------------------------------------------------------------------
 def analyze_common_features(nb_feats, lr_feats, svm_feats, rf_feats):
     """
@@ -258,7 +300,7 @@ def analyze_common_features(nb_feats, lr_feats, svm_feats, rf_feats):
             us_counter[f] += 1
 
     print("\n" + "=" * 70)
-    print("ANALYSE COMPLÈTE DES FEATURES COMMUNES")
+    print("ANALYSE COMPLÈTE DES FEATURES COMMUNES (BM25)")
     print("=" * 70)
 
     print("\n--- Features UK ---")
@@ -298,52 +340,98 @@ def main():
     out_dir = base / "src" / "outputs" / "ex2"
     ensure_dir(out_dir)
 
-    # 1) Charger BM25
+    # ---------------------------------------------------------------
+    # 1) Charger BM25 + labels
+    # ---------------------------------------------------------------
     X_bm25, vocab, meta_bm = load_bm25_matrix()
     y = build_labels_from_meta(meta_bm)
 
+    # ---------------------------------------------------------------
     # 2) Charger les docs pour la matrice de comptes (pour NB)
+    # ---------------------------------------------------------------
     print("\n=== Loading token docs for EX2 (Lemm) ===")
     docs, meta_docs = read_token_docs_for_ex2("Lemm")
     print(f"Docs loaded: {len(docs)}")
 
+    # (On suppose que l'ordre des docs est le même que pour BM25)
     X_counts = build_counts_matrix(vocab, docs)
 
-    # 3) Définir les modèles
+    # ---------------------------------------------------------------
+    # 3) Charger la matrice GoogleNews (doc embeddings)
+    # ---------------------------------------------------------------
+    X_gn, meta_gn = load_googlenews_matrix()
+    # Optionnel : vérifier que le nombre de docs match
+    if X_gn.shape[0] != X_bm25.shape[0]:
+        print("WARNING: BM25 and GoogleNews have different #docs!")
+
+    # ---------------------------------------------------------------
+    # 4) Définir les modèles
+    # ---------------------------------------------------------------
     nb_clf = MultinomialNB()
     lr_clf = LogisticRegression(penalty="l2", solver="liblinear", max_iter=1000)
     svm_clf = LinearSVC(C=1.0, max_iter=2000)
-    rf_clf = RandomForestClassifier(n_estimators=200, max_depth=None, n_jobs=-1, random_state=42)
+    rf_clf = RandomForestClassifier(
+        n_estimators=200,
+        max_depth=None,
+        n_jobs=-1,
+        random_state=42
+    )
 
-    # 4) Cross-validation
-    cross_validate_model("Naive Bayes (MultinomialNB)", nb_clf, X_counts, y)
-    cross_validate_model("Logistic Regression", lr_clf, X_bm25, y)
-    cross_validate_model("Linear SVM", svm_clf, X_bm25, y)
-    cross_validate_model("Random Forest", rf_clf, X_bm25, y)
+    # ---------------------------------------------------------------
+    # 5) Cross-validation sur BM25 / Counts
+    # ---------------------------------------------------------------
+    # NB utilise la matrice de comptes (fréquences brutes)
+    cross_validate_model("Naive Bayes (MultinomialNB) on COUNTS", nb_clf, X_counts, y)
 
-    # 5) Feature importance : entraînement sur TOUTES les données
-    print("\n=== Training models on full data for feature importance ===")
+    # Les modèles linéaires + RF utilisent BM25
+    cross_validate_model("Logistic Regression on BM25", lr_clf, X_bm25, y)
+    cross_validate_model("Linear SVM on BM25", svm_clf, X_bm25, y)
+    cross_validate_model("Random Forest on BM25", rf_clf, X_bm25, y)
 
+    # ---------------------------------------------------------------
+    # 6) Cross-validation sur GoogleNews (comparaison)
+    # ---------------------------------------------------------------
+    print("\n=== Comparing with GoogleNews document embeddings ===")
+    cross_validate_model("Logistic Regression on GoogleNews", lr_clf, X_gn, y)
+    cross_validate_model("Linear SVM on GoogleNews", svm_clf, X_gn, y)
+    cross_validate_model("Random Forest on GoogleNews", rf_clf, X_gn, y)
+
+    # ---------------------------------------------------------------
+    # 7) Feature importance : entraînement sur TOUTES les données (BM25)
+    # ---------------------------------------------------------------
+    print("\n=== Training models on full data (BM25/COUNTS) for feature importance ===")
+
+    # NB sur COUNTS
     nb_full = MultinomialNB()
     nb_full.fit(X_counts, y)
     nb_feats = top_features_nb(nb_full, vocab, k=20)
 
+    # LR sur BM25
     lr_full = LogisticRegression(penalty="l2", solver="liblinear", max_iter=1000)
     lr_full.fit(X_bm25, y)
     lr_feats = top_features_linear_model(lr_full, vocab, model_name="LR", k=20)
 
+    # SVM sur BM25
     svm_full = LinearSVC(C=1.0, max_iter=2000)
     svm_full.fit(X_bm25, y)
     svm_feats = top_features_linear_model(svm_full, vocab, model_name="SVM", k=20)
 
-    rf_full = RandomForestClassifier(n_estimators=200, max_depth=None, n_jobs=-1, random_state=42)
+    # RF sur BM25
+    rf_full = RandomForestClassifier(
+        n_estimators=200,
+        max_depth=None,
+        n_jobs=-1,
+        random_state=42
+    )
     rf_full.fit(X_bm25, y)
     rf_feats = top_features_rf(rf_full, vocab, k=20)
 
-    # 5.5) Analyse comparative des features
+    # 7.5) Analyse comparative des features (BM25 uniquement)
     common_analysis = analyze_common_features(nb_feats, lr_feats, svm_feats, rf_feats)
 
-    # 6) Sauvegarde Excel
+    # ---------------------------------------------------------------
+    # 8) Sauvegarde Excel (feature importance BM25)
+    # ---------------------------------------------------------------
     excel_path = out_dir / "ex2_feature_importance.xlsx"
     print("\nSaving feature importances to:", excel_path)
 
