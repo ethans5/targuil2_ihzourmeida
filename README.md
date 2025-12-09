@@ -206,8 +206,8 @@ Run:
 python src/04_ex2_classifiers.py
 ```
 separation in 2 classes:
-class 0 : UK
-class 1: US
+* class 0 : UK
+* class 1: US
 
 Models trained using 10-fold cross-validation:
 
