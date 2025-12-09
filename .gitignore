@@ -39,12 +39,7 @@ src/data/ex2_matrices/GOOGLENEWS.meta.json
 src/data/ex2_matrices/*.npz
 src/data/ex2_matrices/*.json
 
-# ---------------------
-# Outputs (plots, excel, etc.)
-# ---------------------
-src/outputs/ex2/*.png
-src/outputs/ex2/*.xlsx
-src/outputs/ex2/*.csv
+
 
 # ---------------------
 # TensorFlow & training artifacts
