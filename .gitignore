@@ -1,0 +1,82 @@
+
+# ---------------------
+# Python cache & logs
+# ---------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# ---------------------
+# Virtual environment
+# ---------------------
+venv/
+.env/
+.venv/
+
+# ---------------------
+# VS Code settings
+# ---------------------
+.vscode/
+*.code-workspace
+
+# ---------------------
+# OS generated files
+# ---------------------
+.DS_Store
+Thumbs.db
+
+# ---------------------
+# Project generated data
+# ---------------------
+src/data/ex2_clean/
+src/data/ex2_lemm/
+src/data/ex2_matrices/BM25.npz
+src/data/ex2_matrices/BM25.meta.json
+src/data/ex2_matrices/GOOGLENEWS.npz
+src/data/ex2_matrices/GOOGLENEWS.meta.json
+src/data/ex2_matrices/*.npz
+src/data/ex2_matrices/*.json
+
+# ---------------------
+# Outputs (plots, excel, etc.)
+# ---------------------
+src/outputs/ex2/*.png
+src/outputs/ex2/*.xlsx
+src/outputs/ex2/*.csv
+
+# ---------------------
+# TensorFlow & training artifacts
+# ---------------------
+*.keras
+*.h5
+checkpoint/
+checkpoints/
+*.ckpt
+*.pb
+
+# ---------------------
+# Jupyter
+# ---------------------
+.ipynb_checkpoints/
+
+# ---------------------
+# Temporary files
+# ---------------------
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# ---------------------
+# IDE-specific
+# ---------------------
+.idea/
+*.iml
+
+# ---------------------
+# Environment variables files
+# ---------------------
+*.env
