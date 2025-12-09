@@ -129,6 +129,35 @@ Outputs:
 
 These embeddings capture semantic similarity beyond raw term frequency.
 
+4.3 Comparison: BM25 vs Google News Embeddings
+
+This project evaluates two fundamentally different text representations:
+
+BM25
+
+Lexical, sparse document-term matrix
+
+Based on exact word frequencies
+
+Very discriminative for datasets where vocabulary differs strongly (UK vs US)
+
+Google News Word2Vec (300d)
+
+Dense, semantic representation
+
+Captures meaning rather than exact words
+
+Provides more natural cluster shapes in t-SNE / UMAP space
+
+Key Insights
+
+BM25 produces extremely sharp linear separation due to lexical differences between UK and US debates.
+
+Google News embeddings produce more continuous and semantically meaningful clusters, while still achieving nearly 100% separability.
+
+Both representations achieve near-perfect classification accuracy, confirming that the dataset is highly separable.
+
+This comparison is now reflected in both clustering results and visualizations.
 ---
 
 ## 5. Dimensionality Reduction
@@ -231,15 +260,47 @@ Generated figures:
 
 ### t-SNE with true labels
 
-![t-SNE True Labels](src/outputs/ex2/tsne_bm25_true_labels.png)
+## 📊 BM25 Visualizations
 
-### UMAP with true labels
+### t-SNE (true labels)
+![tsne_bm25_true](src/outputs/ex2/tsne_bm25_true_labels.png)
 
-![UMAP True Labels](src/outputs/ex2/umap_bm25_true_labels.png)
+### t-SNE (KMeans)
+![tsne_bm25_kmeans](src/outputs/ex2/tsne_bm25_kmeans_clusters.png)
 
-### t-SNE with KMeans clusters
+### t-SNE (DBSCAN)
+![tsne_bm25_dbscan](src/outputs/ex2/tsne_bm25_dbscan_clusters.png)
 
-![t-SNE KMeans](src/outputs/ex2/tsne_bm25_kmeans_clusters.png)
+### t-SNE (HDBSCAN)
+![tsne_bm25_hdbscan](src/outputs/ex2/tsne_bm25_hdbscan_clusters.png)
+
+### t-SNE (GMM)
+![tsne_bm25_gmm](src/outputs/ex2/tsne_bm25_gmm_clusters.png)
+
+### UMAP (true labels)
+![umap_bm25_true](src/outputs/ex2/umap_bm25_true_labels.png)
+
+---
+
+## 📊 Google News Visualizations
+
+### t-SNE (true labels)
+![tsne_gn_true](src/outputs/ex2/tsne_gn_true_labels.png)
+
+### t-SNE (KMeans)
+![tsne_gn_kmeans](src/outputs/ex2/tsne_gn_kmeans_clusters.png)
+
+### t-SNE (DBSCAN)
+![tsne_gn_dbscan](src/outputs/ex2/tsne_gn_dbscan_clusters.png)
+
+### t-SNE (HDBSCAN)
+![tsne_gn_hdbscan](src/outputs/ex2/tsne_gn_hdbscan_clusters.png)
+
+### t-SNE (GMM)
+![tsne_gn_gmm](src/outputs/ex2/tsne_gn_gmm_clusters.png)
+
+### UMAP (true labels)
+![umap_gn_true](src/outputs/ex2/umap_gn_true_labels.png)
 
 These confirm extremely clear UK/US separation.
 

@@ -6,9 +6,11 @@ from scipy import sparse
 import matplotlib.pyplot as plt
 from sklearn.decomposition import TruncatedSVD
 from sklearn.manifold import TSNE
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN
 from sklearn.preprocessing import normalize
+from sklearn.mixture import GaussianMixture
 import umap
+import hdbscan
 
 
 # -------------------------------------------------------------------
@@ -48,10 +50,6 @@ def load_googlenews_and_labels():
     + meta et construit les labels :
       UK -> 0
       US -> 1
-
-    Fichiers générés par 02_ex2_build_matrices.py :
-      - src/data/ex2_matrices/GOOGLENEWS.npz (clé 'mat')
-      - src/data/ex2_matrices/GOOGLENEWS.meta.json
     """
     base = pathlib.Path(__file__).resolve().parents[1]
     mat_dir = base / "src" / "data" / "ex2_matrices"
@@ -76,18 +74,52 @@ def load_googlenews_and_labels():
 
 
 # -------------------------------------------------------------------
-#  FONCTION GÉNÉRIQUE DE VISUALISATION t-SNE + UMAP + KMEANS
+#  FONCTION UTILITAIRE POUR PLOTER LES CLUSTERS SUR t-SNE
+# -------------------------------------------------------------------
+def plot_clusters_on_tsne(X_tsne, cluster_labels, title, out_path):
+    """
+    Affiche les points t-SNE colorés par labels de clusters.
+    Gère aussi le label -1 (noise DBSCAN/HDBSCAN).
+    """
+    unique_labels = np.unique(cluster_labels)
+
+    plt.figure(figsize=(8, 6))
+    for lab in unique_labels:
+        idx = (cluster_labels == lab)
+        if lab == -1:
+            label_name = "Noise (-1)"
+        else:
+            label_name = f"Cluster {lab}"
+        plt.scatter(X_tsne[idx, 0], X_tsne[idx, 1],
+                    s=10, alpha=0.6, label=label_name)
+    plt.legend()
+    plt.title(title)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200)
+    plt.close()
+    print("Saved:", out_path)
+
+
+# -------------------------------------------------------------------
+#  FONCTION GÉNÉRIQUE DE VISUALISATION
 # -------------------------------------------------------------------
 def visualize_representation(X, y, out_dir, prefix):
     """
-    Applique :
-      - t-SNE (metric=cosine)
-      - UMAP (metric=cosine)
-      - KMeans (k=2) sur l'espace t-SNE
-    et sauvegarde les figures dans out_dir avec un préfixe donné.
+    X : représentation haute dimension (déjà normalisée L2)
+    y : labels vrais (UK=0, US=1)
+    prefix : 'bm25' ou 'gn'
+
+    Étapes :
+      1) t-SNE + UMAP colorés par labels vrais
+      2) Clustering dans l'espace X avec :
+           - KMeans (k=2)
+           - DBSCAN (cosine)
+           - HDBSCAN
+           - Gaussian Mixture (n_components=2)
+         Puis visualisation des clusters sur la carte t-SNE.
     """
     # ---------------------------------------------------------------
-    #  t-SNE avec cosine
+    #  t-SNE avec cosine (pour visualiser en 2D)
     # ---------------------------------------------------------------
     print(f"t-SNE projection for {prefix} (metric='cosine')...")
     tsne = TSNE(
@@ -113,7 +145,7 @@ def visualize_representation(X, y, out_dir, prefix):
     print("Saved:", tsne_path)
 
     # ---------------------------------------------------------------
-    #  UMAP avec cosine
+    #  UMAP avec cosine (pour visualiser en 2D)
     # ---------------------------------------------------------------
     print(f"UMAP projection for {prefix} (metric='cosine')...")
     reducer = umap.UMAP(
@@ -137,24 +169,67 @@ def visualize_representation(X, y, out_dir, prefix):
     print("Saved:", umap_path)
 
     # ---------------------------------------------------------------
-    #  KMeans sur t-SNE (k=2) pour la visualisation des clusters
+    #  CLUSTERING DANS L'ESPACE X
     # ---------------------------------------------------------------
-    print(f"KMeans on t-SNE for {prefix} (k=2)...")
-    kmeans = KMeans(n_clusters=2, n_init=10, random_state=42)
-    cluster_labels = kmeans.fit_predict(X_tsne)
+    print(f"\n=== Clustering on {prefix} representation ===")
 
-    plt.figure(figsize=(8, 6))
-    for cl in [0, 1]:
-        idx = (cluster_labels == cl)
-        plt.scatter(X_tsne[idx, 0], X_tsne[idx, 1],
-                    s=10, alpha=0.6, label=f"Cluster {cl}")
-    plt.legend()
-    plt.title(f"t-SNE of {prefix} (KMeans clusters)")
-    plt.tight_layout()
+    # 1) KMeans (k=2)
+    print("KMeans (k=2)...")
+    kmeans = KMeans(n_clusters=2, n_init=10, random_state=42)
+    labels_km = kmeans.fit_predict(X)
     km_path = out_dir / f"tsne_{prefix}_kmeans_clusters.png"
-    plt.savefig(km_path, dpi=200)
-    plt.close()
-    print("Saved:", km_path)
+    plot_clusters_on_tsne(
+        X_tsne, labels_km,
+        title=f"t-SNE of {prefix} (KMeans clusters)",
+        out_path=km_path
+    )
+
+    # 2) DBSCAN (cosine) – paramètres comme dans le fichier de clustering
+    print("DBSCAN (cosine)...")
+    dbscan = DBSCAN(
+        eps=0.3,
+        min_samples=5,
+        metric="cosine"
+    )
+    labels_db = dbscan.fit_predict(X)
+    print("DBSCAN clusters (incl. -1):",
+          {int(c): int(np.sum(labels_db == c)) for c in np.unique(labels_db)})
+    db_path = out_dir / f"tsne_{prefix}_dbscan_clusters.png"
+    plot_clusters_on_tsne(
+        X_tsne, labels_db,
+        title=f"t-SNE of {prefix} (DBSCAN clusters)",
+        out_path=db_path
+    )
+
+    # 3) HDBSCAN (euclidean sur vecteurs L2-normalisés ≈ cosine)
+    print("HDBSCAN ...")
+    hdb = hdbscan.HDBSCAN(
+        min_cluster_size=15,
+        min_samples=5,
+        metric="euclidean"
+    )
+    labels_hdb = hdb.fit_predict(X)
+    print("HDBSCAN clusters (incl. -1):",
+          {int(c): int(np.sum(labels_hdb == c)) for c in np.unique(labels_hdb)})
+    hdb_path = out_dir / f"tsne_{prefix}_hdbscan_clusters.png"
+    plot_clusters_on_tsne(
+        X_tsne, labels_hdb,
+        title=f"t-SNE of {prefix} (HDBSCAN clusters)",
+        out_path=hdb_path
+    )
+
+    # 4) Gaussian Mixture (2 composantes)
+    print("Gaussian Mixture (n_components=2)...")
+    gmm = GaussianMixture(n_components=2, random_state=42)
+    labels_gmm = gmm.fit_predict(X)
+    print("GMM clusters:",
+          {int(c): int(np.sum(labels_gmm == c)) for c in np.unique(labels_gmm)})
+    gmm_path = out_dir / f"tsne_{prefix}_gmm_clusters.png"
+    plot_clusters_on_tsne(
+        X_tsne, labels_gmm,
+        title=f"t-SNE of {prefix} (GMM clusters)",
+        out_path=gmm_path
+    )
 
 
 # -------------------------------------------------------------------
@@ -174,11 +249,10 @@ def main():
     # SVD + normalisation L2 pour approximer la distance cosinus
     print("SVD reduction on BM25...")
     svd = TruncatedSVD(n_components=50, random_state=42)
-    X_red = svd.fit_transform(X_sparse)
-    X_red = normalize(X_red, norm="l2")  # ≈ espace cosinus
+    X_bm = svd.fit_transform(X_sparse)
+    X_bm = normalize(X_bm, norm="l2")  # ≈ espace cosinus
 
-    # Visualisation BM25
-    visualize_representation(X_red, y_bm, out_dir, prefix="bm25")
+    visualize_representation(X_bm, y_bm, out_dir, prefix="bm25")
 
     # ---------------------------------------------------------------
     #  2) VISUALISATIONS POUR GOOGLE NEWS
@@ -186,11 +260,10 @@ def main():
     print("\nLoading GoogleNews embeddings...")
     X_gn, y_gn = load_googlenews_and_labels()
 
-    # Normalisation L2 (les vecteurs sont déjà denses, dim=300)
+    # Normalisation L2
     print("L2-normalizing GoogleNews embeddings...")
     X_gn_norm = normalize(X_gn, norm="l2")
 
-    # Visualisation Google News
     visualize_representation(X_gn_norm, y_gn, out_dir, prefix="gn")
 
 
